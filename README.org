@@ -1,0 +1,24 @@
+#+title: Spark-learning
+#+property: header-args :eval no-export
+
+Sparkを学ぶためのリポジトリ
+
+* Prerequisites
+Nixをインストールし、flake support を有効にしておく必要があります。
+
+** Nixのインストール
+https://nixos.org/guides/install-nix.html
+
+** flake support の有効化
+https://nixos.wiki/wiki/Flakes
+
+* Installation
+このリポジトリをクローンして ~nix develop~ と打てばすぐにSparkを学ぶための環境に入れます。
+
+#+begin_src shell
+$ git clone https://github.com/hnakano863/Spark-leaning.git
+$ cd Spark-learning
+$ nix develop
+#+end_src
+
+初めて ~nix develop~ するときはSparkをソースからビルドするのでそこそこ時間がかかります。
