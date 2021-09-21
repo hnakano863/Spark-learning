@@ -1,7 +1,7 @@
 {
-  description = "A standard dev shell";
+  description = "Shell environment for getting started with Apache Spark";
 
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-21.05";
 
   outputs = { self, nixpkgs }:
     let
@@ -13,9 +13,18 @@
         ];
       };
 
+      spark-buildable = with pkgs; spark.override {
+        hadoop = hadoop_2_8;
+        jre = jre8;
+        pythonPackages = python37Packages;
+        RSupport = false;
+      };
+
     in {
 
-      devShell.x86_64-linux = import ./shell.nix { inherit pkgs; };
+      devShell.x86_64-linux = pkgs.mkShell {
+        buildInputs = [ spark-buildable ];
+      };
 
     };
 }
