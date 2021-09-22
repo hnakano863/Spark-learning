@@ -1,0 +1,197 @@
+#+title: RDD Programming Guide
+#+property: header-args :eval no-export
+
+* 基本コンセプト
+** RDD
+RDDはresilient distributed dataset の略。
+
+RDDは、並列に処理できるようになっているデータの集まりのこと。
+並列処理可能なように、クラスターのそれぞれのノードに分散してデータが配置されている。
+
+** shared variable
+通常、Sparkが並列処理タスクとして関数を実行するときは、変数をコピーしてそれぞれのタスクに送る。
+しかし、タスク間や、タスクとドライバとの間で変数を共有したい場合がある。
+そういうときのために、Sparkは以下の2種類のshared variableを用意している。
+
+- broadcast variable :: 全ノードのメモリにキャシュされる変数
+- accumulator :: 合計やカウントなど、ノードごとの値を足し合わせることのできる変数
+
+* SparkContext, SparkConf
+Sparkを利用するためには、 ~SparkContext~ インスタンスを作らなければならない。
+そして、 ~SparkContext~ のインスタンスを作るためには、まず ~SparkConf~ のインスタンスを作らなければならない。
+
+** SparkConf
+インスタンス化の方法
+#+begin_src python
+from pyspark import SparkConf
+
+conf = SparkConf().setAppName(appName).setMaster(master)
+#+end_src
+
+#+begin_src python
+help(SparkConf)
+#+end_src
+
+#+begin_example
+class SparkConf(builtins.object)
+ |  SparkConf(loadDefaults=True, _jvm=None, _jconf=None)
+ |
+ |  Configuration for a Spark application. Used to set various Spark
+ |  parameters as key-value pairs.
+ |
+ |  Most of the time, you would create a SparkConf object with
+ |  C{SparkConf()}, which will load values from C{spark.*} Java system
+ |  properties as well. In this case, any parameters you set directly on
+ |  the C{SparkConf} object take priority over system properties.
+ |
+ |  For unit tests, you can also call C{SparkConf(false)} to skip
+ |  loading external settings and get the same configuration no matter
+ |  what the system properties are.
+ |
+ |  All setter methods in this class support chaining. For example,
+ |  you can write C{conf.setMaster("local").setAppName("My app")}.
+ |
+ |  .. note:: Once a SparkConf object is passed to Spark, it is cloned
+ |      and can no longer be modified by the user.
+#+end_example
+
+要するに、 ~SparkConf~ とは、Sparkを使うアプリケーションの設定を、キーバリューペアとして保持するクラスのようだ。
+~SparkConf()~ でデフォルトの値を使った設定を作成し、各値に対するセッターを使ってデフォルトを上書きする。
+
+注目すべきセッターについてのヘルプを見る。
+
+#+begin_src python
+help(SparkConf.setAppName)
+#+end_src
+
+#+begin_example
+setAppName(self, value)
+    Set application name.
+#+end_example
+
+SparkのUI上で表示されるアプリケーション名を設定する。
+
+#+begin_src python
+help(SparkConf.setMaster)
+#+end_src
+
+#+begin_example
+setMaster(self, value)
+    Set master URL to connect to.
+#+end_example
+
+クラスターマスターを指定する。
+masterには、以下のどれかの値を指定する。
+http://spark.apache.org/docs/latest/submitting-applications.html#master-urls
+
+普通はアプリにハードコードせず、スクリプトを動かすターミナルコマンドのパラメタで指定する。
+
+#+begin_src shell
+$ spark-submit yourApp.py --master <your-master-url>
+#+end_src
+
+** SparkContext
+~SparkContext~ のインスタンス化は、引数に ~SparkConf~ インスタンスを渡すだけ
+#+begin_src python
+from pyspark import SparkContext
+
+sc = SparkContext(conf=conf)
+#+end_src
+
+#+begin_src python
+help(SparkContext)
+#+end_src
+
+#+begin_example
+class SparkContext(builtins.object)
+ |  SparkContext(master=None, appName=None, sparkHome=None, pyFiles=None, environment=None, batchSize=0, serializer=PickleSerializer(), conf=None, gateway=None, jsc=None, profiler_cls=<class 'pyspark.profiler.BasicProfiler'>)
+ |
+ |  Main entry point for Spark functionality. A SparkContext represents the
+ |  connection to a Spark cluster, and can be used to create L{RDD} and
+ |  broadcast variables on that cluster.
+ |
+ |  .. note:: :class:`SparkContext` instance is not supported to share across multiple
+ |      processes out of the box, and PySpark does not guarantee multi-processing execution.
+ |      Use threads instead for concurrent processing purpose.
+#+end_example
+
+要するに、SparkContextというのは、Sparkのクラスタとやりとりするために必要なエントリポイントか何かだと思えばよさそうだ。
+
+* RDD
+RDDは、普通の配列から作成する方法と外部ファイルを読み込んで作成する方法の2通りで作成できる。
+
+** 配列からの作成
+#+begin_src python
+data = [1,2,3,4,5]
+distData = sc.parallelize(data)
+#+end_src
+
+#+begin_src python
+help(SparkContext.parallelize)
+#+end_src
+
+#+begin_example
+parallelize(self, c, numSlices=None)
+    Distribute a local Python collection to form an RDD. Using xrange
+    is recommended if the input represents a range for performance.
+#+end_example
+
+要するに、普通の配列を「並列処理可能な配列」にするってことだ。
+
+** 外部ファイルから作成
+HadoopでサポートされているファイルからならなんでもRDDに読みこむことができる。
+#+begin_src python
+distFile = sc.textFile("data.txt")
+#+end_src
+
+* RDD operation
+RDDに対して行う操作は transformation と action の2種類に大別される。
+
+transformation は既存のデータセットをもとにして新しいデータセットを作成することであり、
+action はデータセット上の計算をした後にその結果がドライバプログラムに返ってくるような操作である。
+典型的には、action は合計を求めたり、レコード数を数えたりといった集計操作であることが多そうだ。
+
+例えば、 ~map~ は transformation であり、 ~reduce~ は action である。
+
+ここで重要なことは、transformation は遅延評価であり、actionは正格評価であるということである。
+つまり、なんらかの action によって結果を要求されて初めて、 transformation は実際の計算を行う。
+
+デフォルトでは、 transformation は毎回再計算される。
+つまり、同じ action を何度も利用するときは、同じ transformation が何度も行われてしまって非効率である。
+これを避けるために、クラスタのメモリにデータセットをキャッシュする ~persist~ メソッドが用意されている。
+
+** ちょっとした operation の例
+関数を直接渡して計算を実行できる。
+
+#+begin_src python
+rdd.reduce(lambda a, b: a + b)
+#+end_src
+
+* Shared variables
+通常、関数に ~map~ ~reduce~ で渡された値はノード毎にコピーされ、その値を更新するような計算を回しても、
+その結果がドライバプログラムに影響することはない。
+
+そこをなんとか、ドライバプログラムに値を波及させる仕組みが Shared variableである。
+
+** broadcast variable
+broadcast 変数は、データのコピーをノードに送るのではなく、read-only なキャッシュを各マシンに作らせるものである。
+巨大なインメモリデータをインプットとして渡したいときなどに役立つ。
+要は、ノードごとにデータをコピーするよりもマシン毎にデータをキャッシュさせた方が効率的になるときに使える。
+
+#+begin_src python
+# broadcast variable の作成
+broadcastVar = sc.broadcast([1,2,3])
+#+end_src
+
+** accumulator
+足し算だけができる、ノード横断のグローバル変数と考えればよい。
+
+#+begin_src python
+accum = sc.accumulator(0)
+
+sc.parallelize([1,2,3,4]).foreach(lambda x: accum.add(x))
+
+accumu.value  #=> 10
+#+end_src
+
+accumulator の更新ができるのは action の中だけであることに注意
