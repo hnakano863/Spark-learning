@@ -105,3 +105,72 @@ class DataFrame(builtins.object)
  |  A more concrete example::
  |  ...
 #+end_example
+
+** 簡単なデータ操作とPandasの操作との対応
+*** 行数のカウント
+**** Spark
+#+begin_src python
+sparkDF.count()
+#+end_src
+
+**** Pandas
+#+begin_src python
+len(pandasDF)
+#+end_src
+
+*** 最初のレコードの取得
+**** Spark
+#+begin_src python
+sparkDF.first()
+#+end_src
+
+**** Pandas
+#+begin_src python
+pandasDF.head(1)
+#+end_src
+
+*** 最初のnレコードの表示
+**** Spark
+#+begin_src python
+sparkDF.show(n)
+#+end_src
+
+引数なしでも可能であり、その場合は ~n=20~ として実行される。
+
+**** Pandas
+#+begin_src python
+pandasDF.head(n)
+#+end_src
+
+引数なしでも可能であり、その場合は ~n=5~ として実行される。
+
+*** クエリ
+列名 ~value~ の列に文字列データを格納したデータフレームが与えられているとする。
+~value~ 列に文字列 "Spark" を含むレコードのみ抽出したいとする。
+
+**** Spark
+#+begin_src python
+sparkDF.filter(sparkDF.value.contains("Spark"))
+#+end_src
+
+**** Pandas
+#+begin_src python
+pandasDF.loc[pandasDF.value.str.contains("Spark"), :]
+#+end_src
+
+**** 共通の考え方
+Sparkにしろ、Pandasにしろ、まずクエリ条件の対象となる列を取り出して、それを ~bool~ 列に変換する。
+そのあと、 ~bool~ 列の値が ~True~ となるような行だけを取得する。
+
+ScalaやJuliaの場合は、このような考え方ではなく、要素の値に対してブールを返す関数を使ってクエリする。
+
+例えばScalaのSparkで同じクエリを書く場合は、
+#+begin_src shell
+scala> textFile.filter(line => line.contains("Spark"))
+res1: org.apache.spark.sql.Dataset[String] = [value: string]
+#+end_src
+
+Juliaの ~DataFrames.jl~ を使う場合は、
+#+begin_src julia
+filter(:value => (x -> occursin("Spark", x)), juliaDF)
+#+end_src
