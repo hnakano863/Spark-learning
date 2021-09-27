@@ -7,6 +7,8 @@
     let
       system = "x86_64-linux";
 
+      pythonPackages = pkgs.python37Packages;
+
       pkgs = import nixpkgs {
         inherit system;
         config.permittedInsecurePackages = [
@@ -15,11 +17,15 @@
       };
 
       spark-buildable = with pkgs; spark.override {
+        inherit pythonPackages;
         hadoop = hadoop_2_8;
         jre = jre8;
-        pythonPackages = python37Packages;
         RSupport = false;
       };
+
+      py = pythonPackages.python.withPackages (ps: with ps; [
+        pandas numpy pyarrow
+      ]);
 
     in {
 
@@ -37,6 +43,8 @@
       };
 
       devShell."${system}" = pkgs.mkShell {
+        PYSPARK_DRIVER_PYTHON = "${py.interpreter}";
+        ARROW_PRE_0_15_IPC_FORMAT = 1;
         buildInputs = [ spark-buildable ];
       };
 
