@@ -22,3 +22,10 @@ $ nix develop
 #+end_src
 
 初めて ~nix develop~ するときはSparkをソースからビルドするのでそこそこ時間がかかります。
+
+* 例題データの作成法
+#+begin_src shell
+$ nix build .#example-data
+#+end_src
+
+とすると、 ~result/share/~ 以下に例題データが生成されます。
