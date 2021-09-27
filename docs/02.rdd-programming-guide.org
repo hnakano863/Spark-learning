@@ -196,3 +196,6 @@ accumu.value  #=> 10
 #+end_src
 
 accumulator の更新ができるのは action の中だけであることに注意
+
+* 参考
+** http://spark.apache.org/docs/latest/rdd-programming-guide.html

@@ -415,3 +415,6 @@ http://spark.apache.org/docs/latest/api/python/reference/pyspark.sql.html#datafr
 
 また、列に対するオペレーションについては、以下を参照
 http://spark.apache.org/docs/latest/api/python/reference/pyspark.sql.html#functions
+
+* 参考
+** http://spark.apache.org/docs/latest/sql-getting-started.html

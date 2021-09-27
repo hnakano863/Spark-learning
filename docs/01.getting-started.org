@@ -174,3 +174,7 @@ Juliaの ~DataFrames.jl~ を使う場合は、
 #+begin_src julia
 filter(:value => (x -> occursin("Spark", x)), juliaDF)
 #+end_src
+
+
+* 参考
+** http://spark.apache.org/docs/latest/quick-start.html
