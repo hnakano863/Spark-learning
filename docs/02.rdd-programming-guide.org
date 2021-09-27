@@ -57,6 +57,7 @@ class SparkConf(builtins.object)
 
 要するに、 ~SparkConf~ とは、Sparkを使うアプリケーションの設定を、キーバリューペアとして保持するクラスのようだ。
 ~SparkConf()~ でデフォルトの値を使った設定を作成し、各値に対するセッターを使ってデフォルトを上書きする。
+設定できるプロパティ一覧はこちらを参照 https://spark.apache.org/docs/latest/configuration.html
 
 注目すべきセッターについてのヘルプを見る。
 
