@@ -150,3 +150,268 @@ spark = SparkSession.builder\
 #+end_src
 
 としてインスタンス化できる。
+
+* DataFrameの作成方法
+spark-shell や pyspark のshellに入ったときは、基本的に ~spark~ という名前の ~SparkSession~ インスタンスがすでに用意されている。
+~SparkSession~ をエントリーポイントとして、RDD, Hiveテーブルやその他の spark data sourceからDataFrameを作成できる。
+spark data sourcesの詳細については [[http://spark.apache.org/docs/latest/sql-data-sources.html][こちら]] を参照。
+
+#+begin_src python
+df = spark.read.json('result/share/people.json')
+df.show()
+#+end_src
+
+#+begin_example
++----+-------+
+| age|   name|
++----+-------+
+|null|Michael|
+|  30|   Andy|
+|  19| Justin|
++----+-------+
+#+end_example
+
+* 基本的なオペレーションとpandasとの比較
+** 列へのアクセス
+~df.age~ または ~df['age']~
+~df['age']~ の方が推奨らしい
+
+pandasの場合も同じ記法で列アクセスできる。
+
+*** 列の型
+なお、SparkのDataFrameにおいて、列の型は ~Column~ 型になる。
+
+#+begin_src python
+type(df['age'])
+#+end_src
+
+#+begin_example
+<class 'pyspark.sql.column.Column'>
+#+end_example
+
+#+begin_src python
+help(df['age'])
+#+end_src
+
+#+begin_example
+Help on Column in module pyspark.sql.column object:
+
+class Column(builtins.object)
+ |  Column(jc)
+ |
+ |  A column in a DataFrame.
+ |
+ |  :class:`Column` instances can be created by::
+ |
+ |      # 1. Select a column out of a DataFrame
+ |
+ |      df.colName
+ |      df["colName"]
+ |
+ |      # 2. Create from an expression
+ |      df.colName + 1
+ |      1 / df.colName
+ |
+ |  .. versionadded:: 1.3
+ |
+#+end_example
+
+** 列の選択
+~DataFrame.select~ を使う。返り値は ~DataFrame~ になる。
+
+#+begin_src python
+x = df.select('name')
+x.show()
+#+end_src
+
+#+begin_example
++-------+
+|   name|
++-------+
+|Michael|
+|   Andy|
+| Justin|
++-------+
+#+end_example
+
+#+begin_src python
+type(x)
+#+end_src
+
+#+begin_example
+<class 'pyspark.sql.dataframe.DataFrame'>
+#+end_example
+
+この操作はpandasでは ~df[['name']]~ に当たる。
+
+*** selectのtips
+
+引数には複数の列名や ~*~ , ~Column~ 型の値やその混合も可能である。
+#+begin_src python
+df.select('name', 'age')
+df.select('*')
+df.select(df['name'])
+df.select('name', df['age'], '*')
+#+end_src
+
+また、selectは列の変形を同時に行うことができる。
+
+#+begin_src python
+df.select('name', df['age'] + 1).show()
+#+end_src
+
+#+begin_example
++-------+---------+
+|   name|(age + 1)|
++-------+---------+
+|Michael|     null|
+|   Andy|       31|
+| Justin|       20|
++-------+---------+
+#+end_example
+
+*** selectのドキュメント
+#+begin_src python
+help(df.select)
+#+end_src
+
+#+begin_example
+Help on method select in module pyspark.sql.dataframe:
+
+select(*cols) method of pyspark.sql.dataframe.DataFrame instance
+    Projects a set of expressions and returns a new :class:`DataFrame`.
+
+    :param cols: list of column names (string) or expressions (:class:`Column`).
+        If one of the column names is '*', that column is expanded to include all columns
+        in the current DataFrame.
+
+    >>> df.select('*').collect()
+    [Row(age=2, name='Alice'), Row(age=5, name='Bob')]
+    >>> df.select('name', 'age').collect()
+    [Row(name='Alice', age=2), Row(name='Bob', age=5)]
+    >>> df.select(df.name, (df.age + 10).alias('age')).collect()
+    [Row(name='Alice', age=12), Row(name='Bob', age=15)]
+
+    .. versionadded:: 1.3
+#+end_example
+
+** フィルタ
+~DataFrame.filter~ を使って行の値についてレコードをフィルタできる。
+
+#+begin_src python
+df.filter(df['age'] > 21).show()
+#+end_src
+
+#+begin_example
++---+----+
+|age|name|
++---+----+
+| 30|Andy|
++---+----+
+#+end_example
+
+pandasだと、以下の2つが相同
+
+#+begin_src python
+df.loc[df['age'] > 21, :]
+df.query('age > 21')
+#+end_src
+
+~DataFrame.filter~ の引数はブール値の ~Column~ 型と決まっているので、
+SQLの ~WHERE~ や pandas の ~query~ のつもりで使うよりも、 pandasの ~loc~ のつもりで使う方が良いかもしれない。
+
+*** filterのドキュメント
+#+begin_src python
+help(df.filter)
+#+end_src
+
+#+begin_example
+Help on method filter in module pyspark.sql.dataframe:
+
+filter(condition) method of pyspark.sql.dataframe.DataFrame instance
+    Filters rows using the given condition.
+
+    :func:`where` is an alias for :func:`filter`.
+
+    :param condition: a :class:`Column` of :class:`types.BooleanType`
+        or a string of SQL expression.
+
+    >>> df.filter(df.age > 3).collect()
+    [Row(age=5, name='Bob')]
+    >>> df.where(df.age == 2).collect()
+    [Row(age=2, name='Alice')]
+
+    >>> df.filter("age > 3").collect()
+    [Row(age=5, name='Bob')]
+    >>> df.where("age = 2").collect()
+    [Row(age=2, name='Alice')]
+
+    .. versionadded:: 1.3
+#+end_example
+
+** groupby
+#+begin_src python
+df.groupBy('age').count().show()
+#+end_src
+
+#+begin_example
++----+-----+
+| age|count|
++----+-----+
+|  19|    1|
+|null|    1|
+|  30|    1|
++----+-----+
+#+end_example
+
+pandasだと、少し長いが、以下のコードと相同になる。
+インデックスができないことや列名が変わることに注意
+
+#+begin_src python
+df.groupby('age', as_index=False)\
+    .name.count()\
+    .rename(columns={'name': 'count'})
+#+end_src
+
+*** groupByの型
+~DataFrame.groupBy~ の返り値は ~GroupedData~ クラスになる。
+
+#+begin_src python
+gdf = df.groupBy('age')
+type(gdf)
+#+end_src
+
+#+begin_example
+<class 'pyspark.sql.group.GroupedData'>
+#+end_example
+
+#+begin_src python
+help(gdf)
+#+end_src
+
+#+begin_example
+Help on GroupedData in module pyspark.sql.group object:
+
+class GroupedData(builtins.object)
+ |  GroupedData(jgd, df)
+ |
+ |  A set of methods for aggregations on a :class:`DataFrame`,
+ |  created by :func:`DataFrame.groupBy`.
+#+end_example
+
+*** GroupedDataに対して渡せる集約関数
+~GroupedData~ クラスのドキュメントの続きに書いてある。
+
+#+begin_quote
+1. built-in aggregation functions, such as `avg`, `max`, `min`, `sum`, `count`
+2. group aggregate pandas UDFs, created with :func:`pyspark.sql.functions.pandas
+#+end_quote
+
+2については後述する。
+
+** その他のDataFrame API
+以下を参照
+http://spark.apache.org/docs/latest/api/python/reference/pyspark.sql.html#dataframe-apis
+
+また、列に対するオペレーションについては、以下を参照
+http://spark.apache.org/docs/latest/api/python/reference/pyspark.sql.html#functions
