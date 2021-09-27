@@ -1,0 +1,152 @@
+#+title: SQL Programming Guide
+#+property: header-args :eval no-export
+
+* Spark SQL の概要
+Spark SQL は構造化データを処理するためのモジュール。
+
+利用するAPIや言語に関わらず、データ処理には同じエンジンが使われる。
+従って、必要に応じて最適なAPIに切り替えることが可能。
+
+** DatasetとDataFrameについて
+DatasetはSpark1.6以降に追加されたインターフェイス。
+RDDの強い型付けと無名関数を使った柔軟な処理をSpark SQLの最適化エンジンと組合せて利用できるようにしたもの。
+完全なDataset API はJavaとScalaからしか利用できないけど、PythonやRからでも、大抵の利点を享受できる。
+
+DataFrameは名前付きの列で構成されたDatasetのこと。
+R/PythonのDataFrameや関係データベースのテーブルと同じようなもの。
+ScalaやJavaでは Dataset[Row]のエイリアスである。
+
+DataFrame API はSpark, Java, Python, Rから利用できる。
+このドキュメントでは主にPythonでDataFrame API を利用するのに必要な知識に焦点を絞っていこうと思う。
+
+* SparkSession
+Spark SQL の機能を利用するには、まず ~SparkSession~ を作成しないといけない。
+インスタンス化には ~SparkSession.builder~ を使う。
+
+** SparkSessionのドキュメンテーション
+#+begin_src python
+help(SparkSession)
+#+end_src
+
+#+begin_example
+class SparkSession(builtins.object)
+ |  SparkSession(sparkContext, jsparkSession=None)
+ |
+ |  The entry point to programming Spark with the Dataset and DataFrame API.
+ |
+ |  A SparkSession can be used create :class:`DataFrame`, register :class:`DataFrame` as |  tables, execute SQL over tables, cache tables, and read parquet files.
+ |  To create a SparkSession, use the following builder pattern:
+ |
+ |  >>> spark = SparkSession.builder \
+ |  ...     .master("local") \
+ |  ...     .appName("Word Count") \
+ |  ...     .config("spark.some.config.option", "some-value") \
+ |  ...     .getOrCreate()
+ |
+
+#+end_example
+
+#+begin_src python
+help(SparkSession.builder)
+#+end_src
+
+#+begin_example
+Help on Builder in module pyspark.sql.session object:
+
+class Builder(builtins.object)
+ |  Builder for :class:`SparkSession`.
+ |
+ |  Methods defined here:
+ |
+ |  appName(self, name)
+ |      Sets a name for the application, which will be shown in the Spark web UI.
+ |
+ |      If no application name is set, a randomly generated name will be used.
+ |
+ |      :param name: an application name
+ |
+ |      .. versionadded:: 2.0
+ |
+ |  config(self, key=None, value=None, conf=None)
+ |      Sets a config option. Options set using this method are automatically propagated to
+ |      both :class:`SparkConf` and :class:`SparkSession`'s own configuration.
+ |
+ |      For an existing SparkConf, use `conf` parameter.
+ |
+ |      >>> from pyspark.conf import SparkConf
+ |      >>> SparkSession.builder.config(conf=SparkConf())
+ |      <pyspark.sql.session...
+ |
+ |      For a (key, value) pair, you can omit parameter names.
+ |
+ |      >>> SparkSession.builder.config("spark.some.config.option", "some-value")
+ |      <pyspark.sql.session...
+ |
+ |      :param key: a key name string for configuration property
+ |      :param value: a value for configuration property
+ |      :param conf: an instance of :class:`SparkConf`
+ |
+ |      .. versionadded:: 2.0
+ |
+ |  enableHiveSupport(self)
+ |      Enables Hive support, including connectivity to a persistent Hive metastore, support
+ |      for Hive serdes, and Hive user-defined functions.
+ |
+ |      .. versionadded:: 2.0
+ |
+ |  getOrCreate(self)
+ |      Gets an existing :class:`SparkSession` or, if there is no existing one, creates a
+ |      new one based on the options set in this builder.
+ |
+ |      This method first checks whether there is a valid global default SparkSession, and if
+ |      yes, return that one. If no valid global default SparkSession exists, the method
+ |      creates a new SparkSession and assigns the newly created SparkSession as the global
+ |      default.
+ |
+ |      >>> s1 = SparkSession.builder.config("k1", "v1").getOrCreate()
+ |      >>> s1.conf.get("k1") == s1.sparkContext.getConf().get("k1") == "v1"
+ |      True
+ |
+ |      In case an existing SparkSession is returned, the config options specified
+ |      in this builder will be applied to the existing SparkSession.
+ |
+ |      >>> s2 = SparkSession.builder.config("k2", "v2").getOrCreate()
+ |      >>> s1.conf.get("k1") == s2.conf.get("k1")
+ |      True
+ |
+ |      .. versionadded:: 2.0
+ |
+ |  master(self, master)
+ |      Sets the Spark master URL to connect to, such as "local" to run locally, "local[4]"
+ |      to run locally with 4 cores, or "spark://master:7077" to run on a Spark standalone
+ |      cluster.
+ |
+ |      :param master: a url for spark master
+ |
+ |      .. versionadded:: 2.0
+ |
+#+end_example
+
+** ドキュメンテーションの要約
+いちばん簡単なインスタンス化は、 ~SparkSession.builder.getOrCreate()~ である。
+
+app nameを設定して作成したければ、 ~SparkSession.builder.appName("appName").getOrCreate()~
+なんらかのコンフィグをカスタムで設定したければ、
+
+#+begin_src python
+spark = SparkSession.builder\
+    .appName("appName")\
+    .config("some.spark.config.option", "your config value")\
+    .getOrCreate()
+#+end_src
+
+さらに、既になんらかの設定が ~SparkConf~ インスタンスとして存在するならば、
+
+#+begin_src python
+# SparkConfインスタンスconfが存在するものとする。
+spark = SparkSession.builder\
+    .config(conf=conf)\
+    .getOrCreate()
+#+end_src
+
+としてインスタンス化できる。
