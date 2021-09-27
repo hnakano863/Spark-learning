@@ -1,5 +1,36 @@
 #+title: Apache Arrow in PySpark
 #+property: header-args :eval no-export
 
+* Apache Arrow とは
+Apache Arrow は、インメモリデータの形式である。
+SparkはApache Arrow のデータ形式を用いることによって、PythonプロセスとJVMとのデータのやりとりを効率化している。
+
+Pandas/Numpy ユーザーには便利なので、使い方を学習することが推奨される。
+
+* Pandasとの変換
+Arrowを介して、 ~pandas.DataFrame~ と ~pyspark.DataFrame~ との間のデータ型の変換が可能になる。
+そのためにはまず、 ~SparkConf~ で Arrow を利用するように設定する必要がある。
+
+#+begin_src python
+# `spark`はデフォルトのSparkSession
+spark.conf.set("spark.sql.execution.arrow.enabled", "true")
+#+end_src
+
+~DataFrame.createDataFrame~ で ~pandas.DataFrame~ から ~pyspark.DataFrame~ が作成できる。
+
+#+begin_src python
+import pandas as pd
+import numpy as np
+
+pandasDF = pd.DataFrame(np.random.rand(100, 3), columns=['foo', 'bar', 'baz'])
+sparkDF = spark.createDataFrame(pandasDF)
+#+end_src
+
+~DataFrame.toPandas~ でsparkの ~DataFrame~ を ~pandas.DataFrame~ に変換できる。
+
+#+begin_src python
+pandasDF = sparkDF.toPandas()
+#+end_src
+
 * 参考
 ** http://spark.apache.org/docs/latest/api/python/user_guide/arrow_pandas.html
