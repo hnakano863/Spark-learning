@@ -44,12 +44,13 @@
           RSupport = false;
         };
 
-        pyspark-wrapped = runCommand "pyspark-wrapped" {
-          PROG = self.packages."${system}".spark-buildable;
-          buildInputs = [ makeWrapper ];
+        pyspark-wrapped = let
+          inherit (self.packages."${system}") spark-buildable;
+        in runCommand "pyspark-wrapped" rec {
+          buildInputs = [ makeWrapper py spark-buildable ];
         } ''
           mkdir -p $out/bin/
-          makeWrapper $PROG/bin/pyspark $out/bin/pyspark-wrapped \
+          makeWrapper ${spark-buildable}/bin/pyspark $out/bin/pyspark-wrapped \
             --set PYSPARK_DRIVER_PYTHON ${py.interpreter} \
             --set ARROW_PRE_0_15_IPC_FORMAT 1
         '';
