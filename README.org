@@ -5,7 +5,6 @@ Sparkを学ぶためのリポジトリ
 
 * Prerequisites
 Nixをインストールし、flake support を有効にしておく必要があります。
-更に、 ~nix-direnv~ をインストールしておく必要があります。
 
 ** Nixのインストール
 https://nixos.org/guides/install-nix.html
@@ -13,20 +12,16 @@ https://nixos.org/guides/install-nix.html
 ** flake support の有効化
 https://nixos.wiki/wiki/Flakes
 
-** nix-direnvのインストール
-https://github.com/nix-community/nix-direnv
-
 * Installation
-このリポジトリをクローンして ~nix-direnv~ を使えばすぐにSparkを学ぶための環境に入れます。
+このリポジトリをクローンして ~nix-shell~ と打てばすぐにSparkを学ぶための環境に入れます。
 
 #+begin_src shell
 $ git clone https://github.com/hnakano863/Spark-leaning.git
 $ cd Spark-learning
-$ echo 'use flake' > .envrc
-$ direnv allow .
+$ nix shell
 #+end_src
 
-初めて ~nix develop~ するときはSparkをソースからビルドするのでそこそこ時間がかかります。
+初めて ~nix shell~ するときは各種依存プログラムをソースからビルドするのでそこそこ時間がかかります。
 
 * 例題データの作成法
 #+begin_src shell
