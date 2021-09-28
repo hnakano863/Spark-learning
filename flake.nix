@@ -7,18 +7,21 @@
     let
       system = "x86_64-linux";
 
-      pythonPackages = pkgs.python37Packages;
-
       pkgs = import nixpkgs {
         inherit system;
-        config.permittedInsecurePackages = [
-          "openssl-1.0.2u"
-        ];
+        config.permittedInsecurePackages = [ "openssl-1.0.2u" ];
       };
+
+      pythonPackages = pkgs.python37Packages;
 
       py = pythonPackages.python.withPackages (ps: with ps; [
         pandas numpy pyarrow ipykernel
       ]);
+
+      src = pkgs.fetchzip {
+        url = "mirror://apache/spark/spark-3.1.2/spark-3.1.2-bin-without-hadoop.tgz";
+        sha256 = "ziep900R1BVWj17EHOWIYcQ5OzI9A8K88ZifKo0X8K0=";
+      };
 
     in with pkgs; {
 
@@ -26,7 +29,7 @@
 
         example-data = stdenvNoCC.mkDerivation {
           name = "example-data";
-          inherit (spark) src;
+          inherit src;
 
           phases = [ "unpackPhase" "installPhase" ];
 
@@ -37,12 +40,12 @@
           '';
         };
 
-        spark-buildable = spark.override {
+        spark-buildable = (spark.override {
           inherit pythonPackages;
-          hadoop = hadoop_2_8;
+          hadoop = hadoop_3_1;
           jre = jre8;
           RSupport = false;
-        };
+        }).overrideAttrs (oldAttrs: { version = "3.1.2"; inherit src; });
 
         pyspark-wrapped = let
           inherit (self.packages."${system}") spark-buildable;
@@ -51,8 +54,7 @@
         } ''
           mkdir -p $out/bin/
           makeWrapper ${spark-buildable}/bin/pyspark $out/bin/pyspark-wrapped \
-            --set PYSPARK_DRIVER_PYTHON ${py.interpreter} \
-            --set ARROW_PRE_0_15_IPC_FORMAT 1
+            --set PYSPARK_DRIVER_PYTHON ${py.interpreter}
         '';
 
         jupyter-notebook = let
@@ -79,8 +81,7 @@
           mkdir -p $out/bin/
           makeWrapper ${spark-buildable}/bin/pyspark $out/bin/pyspark-jupyter \
             --set PYSPARK_DRIVER_PYTHON ${jupyter-cmd}/bin/jupyter-notebook \
-            --set PYSPARK_DRIVER_PYTHON_OPTS '--no-browser' \
-            --set ARROW_PRE_0_15_IPC_FORMAT 1
+            --set PYSPARK_DRIVER_PYTHON_OPTS '--no-browser'
         '';
       };
 
