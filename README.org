@@ -47,3 +47,23 @@ $ nix build .#example-data
 #+end_src
 
 とすると、 ~result/share/~ 以下に例題データが生成されます。
+
+* Jupyter Notebook での利用
+~nix run .#jupyter-notebook~ で Jupyter Notebook上から pysparkが利用できます。
+
+#+begin_src shell
+$ nix run .#jupyter-notebook
+[I 11:41:01.420 NotebookApp] ローカルディレクトリからノートブックをサーブ: /home/ghq/github.com/hnakano863/Spark-learning
+[I 11:41:01.421 NotebookApp] Jupyter Notebook 6.3.0 is running at:
+[I 11:41:01.421 NotebookApp] http://localhost:8888/?token=1332ccf347607d1bff2aee0f254b5353025b538b
+[I 11:41:01.421 NotebookApp]  or http://127.0.0.1:8888/?token=1332ccf347607d1bff51ff0f254b5353025b538b
+[I 11:41:01.421 NotebookApp] サーバを停止し全てのカーネルをシャットダウンするには Control-C を使って下さい(確認をスキップするには2回)。
+[C 11:41:01.431 NotebookApp]
+
+    To access the notebook, open this file in a browser:
+        file:///home/hnakano/.local/share/jupyter/runtime/nbserver-121312-open.html
+    Or copy and paste one of these URLs:
+        http://localhost:8888/?token=1332ccf347607d1bff2aee444451ff0f254b5353025b538b
+     or http://127.0.0.1:8888/?token=1332ccf347607d1bff2aee444451ff0f254b5353025b538b
+
+#+end_src
