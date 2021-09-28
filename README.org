@@ -13,15 +13,33 @@ https://nixos.org/guides/install-nix.html
 https://nixos.wiki/wiki/Flakes
 
 * Installation
-このリポジトリをクローンして ~nix-shell~ と打てばすぐにSparkを学ぶための環境に入れます。
+このリポジトリをクローンして ~nix run~ と打てばすぐにSparkを学ぶための環境に入れます。
 
 #+begin_src shell
 $ git clone https://github.com/hnakano863/Spark-leaning.git
 $ cd Spark-learning
-$ nix shell
+$ nix run
+Python 3.7.11 (default, Jun 28 2021, 17:43:59)
+[GCC 10.3.0] on linux
+Type "help", "copyright", "credits" or "license" for more information.
+21/09/28 10:49:26 WARN Utils: Your hostname, DESKTOP-ACDI00P resolves to a loopback addr
+ess: 127.0.1.1; using 172.18.141.27 instead (on interface eth0)
+21/09/28 10:49:26 WARN Utils: Set SPARK_LOCAL_IP if you need to bind to another address
+21/09/28 10:49:28 WARN NativeCodeLoader: Unable to load native-hadoop library for your p
+latform... using builtin-java classes where applicable
+Welcome to
+      ____              __
+     / __/__  ___ _____/ /__
+    _\ \/ _ \/ _ `/ __/  '_/
+   /__ / .__/\_,_/_/ /_/\_\   version 2.4.4
+      /_/
+
+Using Python version 3.7.11 (default, Jun 28 2021 17:43:59)
+SparkSession available as 'spark'.
+>>>
 #+end_src
 
-初めて ~nix shell~ するときは各種依存プログラムをソースからビルドするのでそこそこ時間がかかります。
+初めて ~nix run~ するときは各種依存プログラムをソースからビルドするのでそこそこ時間がかかります。
 
 * 例題データの作成法
 #+begin_src shell
