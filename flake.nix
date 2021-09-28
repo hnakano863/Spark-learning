@@ -44,23 +44,18 @@
           RSupport = false;
         };
 
-        spark-wrapped = runCommand "spark-wrapped" {
+        pyspark-wrapped = runCommand "pyspark-wrapped" {
           PROG = self.packages."${system}".spark-buildable;
           buildInputs = [ makeWrapper ];
         } ''
           mkdir -p $out/bin/
-          makeWrapper $PROG/bin/pyspark $out/bin/pyspark \
+          makeWrapper $PROG/bin/pyspark $out/bin/pyspark-wrapped \
             --set PYSPARK_DRIVER_PYTHON ${py.interpreter} \
             --set ARROW_PRE_0_15_IPC_FORMAT 1
         '';
-
-        spark-learning = buildEnv {
-          name = "spark-learning";
-          paths = [ self.packages."${system}".spark-wrapped ];
-        };
       };
 
-      defaultPackage."${system}" = self.packages."${system}".spark-learning;
+      defaultPackage."${system}" = self.packages."${system}".pyspark-wrapped;
 
     };
 }
