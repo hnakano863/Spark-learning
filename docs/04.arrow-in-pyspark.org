@@ -1,5 +1,6 @@
 #+title: Apache Arrow in PySpark
 #+property: header-args :eval no-export
+#+options: \n:t
 
 * Apache Arrow とは
 Apache Arrow は、インメモリデータの形式である。
@@ -13,7 +14,7 @@ Arrowを介して、 ~pandas.DataFrame~ と ~pyspark.DataFrame~ との間のデ�
 
 #+begin_src python
 # `spark`はデフォルトのSparkSession
-spark.conf.set("spark.sql.execution.arrow.enabled", "true")
+spark.conf.set("spark.sql.execution.arrow.pyspark.enabled", "true")
 #+end_src
 
 ~DataFrame.createDataFrame~ で ~pandas.DataFrame~ から ~pyspark.DataFrame~ が作成できる。
@@ -31,6 +32,85 @@ sparkDF = spark.createDataFrame(pandasDF)
 #+begin_src python
 pandasDF = sparkDF.toPandas()
 #+end_src
+
+* Pandas UDFs
+データ転送にArrowを、データ処理にPandasを使って、ユーザー定義の関数をSparkで実行させることができる。
+pandasのデータ処理を関数で書いて、 ~@pandas_udf~ デコレータをつけることにより、sparkの中で使うことができるようになる。
+
+** 関数の書き方の例
+以下のSpark DF の変換をpandas UDF で行うことを考える。
+
+#+begin_src python
+df = spark.createDataFrame(
+    [[1, "a string", ("a nested string",)]],
+    "long_col long, string_col string, struct_col struct<col1:string>"
+)
+
+df.printSchema()
+#+end_src
+
+#+begin_example
+root
+ |-- long_col: long (nullable = true)
+ |-- string_col: string (nullable = true)
+ |-- struct_col: struct (nullable = true)
+ |    |-- col1: string (nullable = true)
+#+end_example
+
+このDataFrameは3つの列を持ち、それぞれの列の型は ~long~, ~string~, ~struct~ となっている。
+3列目の ~struct~ 型は ~col1~ フィールドを持ち、その型は ~string~ である。
+このことを反映して、3列目の型は厳密には ~struct<col1: string>~ のように書く。
+
+いま、pandasを使って、以下の変換をすることを考える。
+1. 2列目の文字列の長さを取得する。
+2. 取得した文字列の長さを1列目の数字を合計する。
+3. 3列目の ~struct~ 型に新たに ~col2~ という名前のフィールドを作成し、2で求めた合計値を ~col2~ に格納する。
+4. 新たにできた ~struct<col1: string, col2: long>~ 型の列を返す。
+
+これを行う関数を ~func~ という名前で定義するコードは以下のようになる。
+
+#+begin_src python
+from pyspark.sql.functions import pandas_udf
+
+@pandas_udf("col1 string, col2 long")
+def func(s1: pd.Series, s2: pd.Series, s3: pd.DataFrame) -> pd.DataFrame:
+    s3['col3'] = s1 + s2.str.len()
+    return s3
+#+end_src
+
+まず、関数を ~@pandas_udf~ デコレータでラップする。デコレータの引数には、返ってくる列の型情報を与える。
+この例の場合、 ~"col1 string, col2 long"~ は、 ~struct<col1: string, col2: long>~ 型に相当する。
+
+次に、python で関数を書く。ここにも型注釈が必要になる。
+基本的に、pandas UDF に与えられる引数は ~DataFrame~ の列になる。これに相当する型注釈は ~pandas.Series~ なので、
+だいたいの場合は ~pandas.Series~ を型注釈とする。
+ただし、列の型が ~struct~ 型であるときは、型注釈は ~pandas.DataFrame~ とする必要がある。
+この例の場合、3列目が ~struct~ 型の値の列なので、 ~s3: pd.DataFrame~ という型注釈を与えている。
+返り値の型注釈も同様に与える。上の例では、 ~struct~ の列を返すので、 ~pd.DataFrame~ を与えている。
+
+定義された関数 ~func~ は、普通の Spark SQL API の関数と同じように利用することができる。
+
+#+begin_src python
+result_df = df.select(func("long_col", "string_col", "struct_col"))
+result_df
+#+end_src
+
+#+begin_example
+DataFrame[func(long_col, string_col, struct_col): struct<col1:string,col2:bigint>]
+#+end_example
+
+#+begin_src python
+result_df.printSchema()
+#+end_src
+
+#+begin_example
+root
+ |-- func(long_col, string_col, struct_col): struct (nullable = true)
+ |    |-- col1: string (nullable = true)
+ |    |-- col2: long (nullable = true)
+#+end_example
+
+意図した通り、関数 ~func~ を3つの列に適用することにより、新しく ~struct<col1: string, col2: long>~ の列を得ることができた。
 
 * 参考
 ** http://spark.apache.org/docs/latest/api/python/user_guide/arrow_pandas.html
