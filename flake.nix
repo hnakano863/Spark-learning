@@ -17,7 +17,7 @@
       };
 
       py = pythonPackages.python.withPackages (ps: with ps; [
-        pandas numpy pyarrow
+        pandas numpy pyarrow ipykernel
       ]);
 
     in with pkgs; {
@@ -46,12 +46,40 @@
 
         pyspark-wrapped = let
           inherit (self.packages."${system}") spark-buildable;
-        in runCommand "pyspark-wrapped" rec {
+        in runCommand "pyspark-wrapped" {
           buildInputs = [ makeWrapper py spark-buildable ];
         } ''
           mkdir -p $out/bin/
           makeWrapper ${spark-buildable}/bin/pyspark $out/bin/pyspark-wrapped \
             --set PYSPARK_DRIVER_PYTHON ${py.interpreter} \
+            --set ARROW_PRE_0_15_IPC_FORMAT 1
+        '';
+
+        jupyter-notebook = let
+
+          inherit (self.packages."${system}") spark-buildable;
+
+          definitions.python3 = {
+            displayName = "Python 3 (PySpark)";
+            argv = [
+              py.interpreter
+              "-m" "ipykernel_launcher"
+              "-f" "{connection_file}"
+            ];
+            language = "python";
+            logo32 = "${py.sitePackages}/ipykernel/resources/logo-32x32.png";
+            logo64 = "${py.sitePackages}/ipykernel/resources/logo-64x64.png";
+          };
+
+          jupyter-cmd = jupyter.override { inherit definitions; };
+
+        in runCommand "pyspark-jupyter" {
+          buildInputs = [ makeWrapper jupyter-cmd py spark-buildable ];
+        } ''
+          mkdir -p $out/bin/
+          makeWrapper ${spark-buildable}/bin/pyspark $out/bin/pyspark-jupyter \
+            --set PYSPARK_DRIVER_PYTHON ${jupyter-cmd}/bin/jupyter-notebook \
+            --set PYSPARK_DRIVER_PYTHON_OPTS '--no-browser' \
             --set ARROW_PRE_0_15_IPC_FORMAT 1
         '';
       };
