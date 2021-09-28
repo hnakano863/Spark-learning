@@ -16,37 +16,51 @@
         ];
       };
 
-      spark-buildable = with pkgs; spark.override {
-        inherit pythonPackages;
-        hadoop = hadoop_2_8;
-        jre = jre8;
-        RSupport = false;
-      };
-
       py = pythonPackages.python.withPackages (ps: with ps; [
         pandas numpy pyarrow
       ]);
 
-    in {
+    in with pkgs; {
 
-      packages."${system}".example-data = pkgs.stdenvNoCC.mkDerivation {
-        name = "example-data";
-        inherit (spark-buildable) src;
+      packages."${system}" = {
 
-        phases = [ "unpackPhase" "installPhase" ];
+        example-data = stdenvNoCC.mkDerivation {
+          name = "example-data";
+          inherit (spark) src;
 
-        installPhase = ''
-          mkdir -p $out/share
-          cp $src/README.md $out/share/README.md
-          cp $src/examples/src/main/resources/people.json $out/share/people.json
+          phases = [ "unpackPhase" "installPhase" ];
+
+          installPhase = ''
+            mkdir -p $out/share
+            cp $src/README.md $out/share/README.md
+            cp $src/examples/src/main/resources/people.json $out/share/people.json
+          '';
+        };
+
+        spark-buildable = spark.override {
+          inherit pythonPackages;
+          hadoop = hadoop_2_8;
+          jre = jre8;
+          RSupport = false;
+        };
+
+        spark-wrapped = runCommand "spark-wrapped" {
+          PROG = self.packages."${system}".spark-buildable;
+          buildInputs = [ makeWrapper ];
+        } ''
+          mkdir -p $out/bin/
+          makeWrapper $PROG/bin/pyspark $out/bin/pyspark \
+            --set PYSPARK_DRIVER_PYTHON ${py.interpreter} \
+            --set ARROW_PRE_0_15_IPC_FORMAT 1
         '';
+
+        spark-learning = buildEnv {
+          name = "spark-learning";
+          paths = [ self.packages."${system}".spark-wrapped ];
+        };
       };
 
-      devShell."${system}" = pkgs.mkShell {
-        PYSPARK_DRIVER_PYTHON = "${py.interpreter}";
-        ARROW_PRE_0_15_IPC_FORMAT = 1;
-        buildInputs = [ spark-buildable ];
-      };
+      defaultPackage."${system}" = self.packages."${system}".spark-learning;
 
     };
 }
