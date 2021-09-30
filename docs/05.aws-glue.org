@@ -1,0 +1,170 @@
+#+title: AWS Glue Extension
+#+property: header-args :eval no-export
+#+options: \n:t
+
+* awsglue
+AWS Glue ではETLジョブにApache Sparkを利用できる。
+また、AWSでpysparkを拡張したデータやデータ変換を提供している。
+AWSによるpyspark拡張のライブラリのことを ~awsglue~ という。
+
+~awsglue~ の公式リポジトリは [[https://github.com/awslabs/aws-glue-libs][こちら]]
+
+* getResolvedOptions
+~getResolvedOptions~ は、GlueのETLジョブに渡された引数にアクセスするための関数
+
+例えば、AWS Lambdaで以下のような処理が ~boto3~ を介して実行された場合を考えてみる。
+#+begin_src python
+# below is executed by Lambda
+resp = client.start_job_run(
+    JobName='test_job',
+    Arguments={
+        '--day_partition_key': 'partition_0',
+        '--hour_partition_key': 'partition_1',
+        '--day_partition_value': day_partition_value,
+        '--hour_partition_value': hour_partition_value,
+    },
+)
+#+end_src
+
+これをGlueで受け取るには、こうする。
+#+begin_src python
+import sys
+from awsglue.utils import getResolvedOptions
+
+args = getResolvedOptions(
+    sys.argv,
+    [
+        'JOB_NAME',
+        'day_partition_key',
+        'hour_partition_key',
+        'day_partition_value',
+        'hour_partition_value',
+    ]
+)
+
+day_partition_value = args['day_partition_value']
+#+end_src
+
+引数を ~getResolvedOptions~ で受け取れるようにするには、引数の名前は2つのハイフンで始まり、そのあとはハイフンではなくアンダースコアを使うようにしなければいけない。
+
+- ~--day-partition-key~ は✖
+- ~--day_partition_key~ は〇
+
+* GlueContext
+~GlueContext~ は、pyspark の ~SQLContext~ を拡張したクラス。
+~SQLContext~ 自体は本家pysparkでは ~SparkSession~ にとってかわられたが、かつては ~DataFrame~ を使った操作のためのエントリーポイントだった。
+
+同様に、 ~GlueContext~ インスタンスは AWS Glue でのデータ操作のメインのエントリーポイントになる。
+
+~SparkContext~ を引数に与えることでインスタンス化できる。
+#+begin_src python
+from awsglue.context import GlueContext
+from pyspark.context import SparkContext
+
+sc = SparkContext.getOrCreate()
+glueContext = GlueContext(sc)
+#+end_src
+
+* DynamicFrame
+Spark の ~DataFrame~ はScemaが決まっていないといけない。そのため、データをロードする際にまずSchemaの推測をしないといけない。
+更に、同じ列は同じ型の値が入っているという前提になっているので、異なる型の値が同じ列に入っている場合はSchemaが正しく推測されないという問題がある。
+
+こうした問題を解決するために AWS Glue では ~DataFrame~ の替わりに ~DynamicFrame~ クラスを用意している。
+~DynamicFrame~ では Schemaの推測はしない。(必要あればする。そのときに複数の型が同じフィールドに入っていれば choice(union)クラスとして表示する)
+
+~DynamicFrame~ 内のレコードクラスは ~DynamicRecord~ という。
+
+シェマ変換が可能になっていれば、 ~DynamicFrame.toDF()~ によって Spark の ~DataFrame~ へ変換することができる。
+また、 ~DynamicFrame.fromDF(dataframe, glue_ctx, name)~ によって ~DataFrame~ から ~DynamicFrame~ を作成できる。
+
+* DynamicFrameReader
+~DyanamicFrame~ を既存のデータから作成するためのクラス。
+AWS Glue が自動生成するスクリプトでは ~GlueContext~ のメソッドからではなく、 ~DynamicFrameReader~ を介して ~DynamicFrame~ が作成される。
+
+直接このクラスをインスタンス化することは多分ない。
+
+** メソッド
+*** =from_rdd=
+sparkのRDDから ~DynamicFrame~ を構築する。
+実装を見ればわかる通り実際に動くのは ~GlueContext~ のメソッド
+#+begin_src python
+class DynamicFrameReader(object):
+    def __init__(self, glue_context):
+        self._glue_context = glue_context
+
+    def from_rdd(self, data, name, schema=None, sampleRatio=None):
+        """Creates a DynamicFrame from an RDD.
+        """
+        return self._glue_context.create_dynamic_frame_from_rdd(data, name, schema, sampleRatio)
+#+end_src
+
+以下はドキュメントから抜粋
+#+begin_quote
+Reads a DynamicFrame from a Resilient Distributed Dataset (RDD).
+
+- ~data~ :: The dataset to read from.
+- ~name~ :: The name to read from.
+- ~schema~ :: The schema to read (optional).
+- ~sampleRatio~ :: The sample ratio (optional).
+#+end_quote
+
+*** =from_catalog=
+AWS Glue Data Catalog から ~DynamicFrame~ を構築する。
+いくつか引数のエラーチェックの後に ~GlueContext.create_dynamic_frame_from_catalog~ を呼び出す実装になっている。
+
+いくつか引数があるが、典型的には第一引数の ~name_space~ と第二引数の ~table_name~ を与えれば十分と思われる。
+
+以下はドキュメントからの抜粋
+#+begin_quote
+Reads a DynamicFrame using the specified catalog namespace and table name.
+
+- ~name_space~ :: The database to read from.
+- ~table_name~ :: The name of the table to read from.
+#+end_quote
+
+*** =from_options=
+接続情報を明示的に与えて ~DynamicFrame~ を構築する。
+実装上は ~from_rdd~ と同様に、 ~GlueContext.create_dynamic_frame_from_options~ を呼び出す。
+
+~from_options(connection_type, connection_options={}, format=None, format_options={}, transformation_ctx="")~
+
+#+begin_quote
+Reads a DynamicFrame using the specified connection and format.
+
+- ~connection_type~ :: The connection type. Valid values include ~s3~, ~mysql~, ~postgresql~, ~redshift~, ~sqlserver~, ~oracle~, and ~dynamodb~.
+- ~connection_options~ :: Connection options, such as path and database table (optional)
+#+end_quote
+
+~connection_options~ の指定方法については必要に応じて公式ドキュメントを参照。
+
+** 実装とglueContextとの関係
+~GlueContext~ クラスのソースコードを見ると、以下のように、 ~create_dynamic_frame~ アトリビュートに ~DynamicFrameReader~ インスタンスが代入されている。
+#+begin_src python
+class GlueContext(SQLContext):
+    ...
+    def __init__(self, sparkContext, **options):
+        ...
+        self.create_dynamic_frame = DynamicFrameReader(self)
+#+end_src
+
+そういうわけで、AWS Glueが自動生成するスクリプトでは、以下のようにしてデータを読んでいる。
+#+begin_src python
+datasource0 = glueContext.create_dynamic_frame.from_catalog(database = "dbname", table_name = "tblname", transformation_ctx = "datasource0")
+#+end_src
+
+~transformation_ctx~ については後述する。
+
+* DynamicFrameWriter
+~DynamicFrame~ を永続化するためのクラス。
+~DynamicFrameReader~ と同様に、内部実装では ~glueContext~ の対応するメソッドをそれぞれ呼び出している。
+また、 ~GlueContext.write_dynamic_frame~ アトリビュート自体が ~DynamincFrameWriter~ インスタンスになっており、
+直接このクラスをインスタンス化することはほぼないと思われる。
+
+** メソッド
+- ~from_options~ :: Readerのメソッドと対応する。引数のオプションに従って ~DynamicFrame~ を書き出す。
+- ~from_catalog~ :: Readerのメソッドと対応する。指定されたデータカタログの情報を利用して ~DynamicFrame~ を書き出す。
+- ~from_jdbc_conf~ :: 引数に与えたJDBC接続情報を用いて ~DynamicFrame~ を書き出す。
+
+* 参考資料
+- https://github.com/awslabs/aws-glue-libs
+- https://docs.aws.amazon.com/glue/latest/dg/aws-glue-programming-python-extensions.html
