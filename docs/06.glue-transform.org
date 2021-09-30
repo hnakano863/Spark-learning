@@ -1,0 +1,44 @@
+#+title: Glue Transform
+#+property: header-args :eval no-export
+#+options: \n:t
+
+* GlueTransform クラス
+Glueのデータ変換の関数は全て ~GlueTransform~ クラスを継承しており、 ~awsglue.transforms~ モジュールからインポートできる。
+
+** メソッド
+~apply~ で変換を適用する。
+~describe~ でヘルプ情報を参照できる。
+
+~describeArgs~ や ~describeReturn~ で ~describe~ で表示される情報のうち、それぞれ引数と返り値の情報だけに限定できる。
+他にも、 ~describeTransform~ と ~describeErrors~ が用意されている。
+
+* ~ApplyMapping~
+列名や列の順序の変更、型の変換なんかをひといきにすることができる。
+
+#+begin_src python
+# foo列をbar列に変更、 baz.qux列というstructのフィールドはbaz_quxという独立した列にする
+mapped0 = ApplyMapping.apply(
+    frame = dyf,
+    mappings = [
+        ("foo", "string", "bar", "string"),
+        ("`baz.qux`", "long", "baz_qux", "long"),
+    ],
+    transformation_ctx = "mapped0",
+)
+#+end_src
+
+* DropFields
+列を削除する。
+struct列の一部フィールドだけを削除するとかもできる。
+
+#+begin_src python
+dropped0 = DropFields.apply(
+    frame = dyf,
+    paths = [ "foo", "baz.qux" ],
+    transformation_ctx = "dropped0",
+)
+#+end_src
+
+* 参考文献
+- https://docs.aws.amazon.com/glue/latest/dg/aws-glue-programming-python-transforms.html
+- https://github.com/awslabs/aws-glue-libs
